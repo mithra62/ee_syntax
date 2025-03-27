@@ -6,8 +6,20 @@ use GeSHi;
 
 class FilterService
 {
+    /**
+     * @var string
+     */
     protected string $syntax_token = '';
+
+    /**
+     * @var array
+     */
     protected array $syntax_matches = [];
+
+    /**
+     * @var GeSHi
+     */
+    protected GeSHi $geshi;
 
     public function __construct()
     {
@@ -15,23 +27,32 @@ class FilterService
         $this->syntax_matches = [];
     }
 
-    public function parse($data)
+    /**
+     * @param string $data
+     * @return string
+     */
+    public function parse(string $data): string
     {
         $data = preg_replace_callback(
             "/\s*<pre(?:lang=[\"']([\w-]+)[\"']|line=[\"'](\d*)[\"']|escaped=[\"'](true|false)?[\"']|highlight=[\"']((?:\d+[,-])*\d+)[\"']|\s)+>(.*)<\/pre>\s*/siU",
-            [$this, '_syntax_substitute'],
+            [$this, 'syntaxSubstitute'],
             $data
         );
 
         $data = preg_replace_callback(
             "/<p>\s*" . $this->syntax_token . "(\d{3})\s*<\/p>/si",
-            [$this, '_syntax_highlight'],
+            [$this, 'syntaxHighlight'],
             $data
         );
+
         return $data;
     }
 
-    private function _syntax_highlight($match)
+    /**
+     * @param array $match
+     * @return string
+     */
+    protected function syntaxHighlight(array $match): string
     {
         $i = intval($match[1]);
         $match = $this->syntax_matches[$i];
@@ -39,7 +60,7 @@ class FilterService
         $line = trim($match[2]);
         $escaped = trim($match[3]);
 
-        $code = $this->_code_trim($match[5]);
+        $code = $this->codeTrim($match[5]);
         if ($escaped != "false") {
             $code = htmlspecialchars_decode($code);
         }
@@ -55,7 +76,7 @@ class FilterService
 
         $highlight = [];
         if (!empty($match[4])) {
-            $highlight = strpos($match[4], ',') == false ? [$match[4]] : explode(',', $match[4]);
+            $highlight = !strpos($match[4], ',') ? [$match[4]] : explode(',', $match[4]);
 
             $h_lines = [];
             $total = sizeof($highlight);
@@ -65,7 +86,7 @@ class FilterService
                 if (sizeof($h_range) == 2) {
                     $h_lines = array_merge($h_lines, range($h_range[0], $h_range[1]));
                 } else {
-                    array_push($h_lines, $highlight[$i]);
+                    $h_lines[] = $highlight[$i];
                 }
             }
 
@@ -81,7 +102,7 @@ class FilterService
 
         if ($line) {
             $output .= "<table><tr><td class=\"line_numbers\">";
-            $output .= $this->_line_numbers($code, $line);
+            $output .= $this->lineNumbers($code, $line);
             $output .= "</td><td class=\"code\">";
             $output .= $code;
             $output .= "</td></tr></table>";
@@ -96,7 +117,12 @@ class FilterService
         return $output;
     }
 
-    private function _line_numbers($code, $start)
+    /**
+     * @param string $code
+     * @param string $start
+     * @return string
+     */
+    protected function lineNumbers(string $code, string $start): string
     {
         $line_count = count(explode("\n", $code));
         $output = "<pre>";
@@ -107,14 +133,22 @@ class FilterService
         return $output;
     }
 
-    private function _syntax_substitute(&$match)
+    /**
+     * @param array $match
+     * @return string
+     */
+    protected function syntaxSubstitute(array $match): string
     {
         $i = count($this->syntax_matches);
         $this->syntax_matches[$i] = $match;
         return "\n\n<p>" . $this->syntax_token . sprintf("%03d", $i) . "</p>\n\n";
     }
 
-    private function _code_trim($code)
+    /**
+     * @param $code
+     * @return string
+     */
+    protected function codeTrim($code): string
     {
         // special ltrim b/c leading whitespace matters on 1st line of content
         $code = preg_replace("/^\s*\n/siU", "", $code);
